@@ -110,14 +110,6 @@ void WebSocketServer::ProcessMessage(SessionPtr session, WebSocketServer::Proces
 			}
 			if (!Utils::Crypto::CheckAuthenticationString(session->Secret(), session->Challenge(),
 								      payloadData["authentication"])) {
-				auto conf = GetConfig();
-				if (conf && conf->AlertsEnabled) {
-					QString title = obs_module_text("OBSWebSocket.TrayNotification.AuthenticationFailed.Title");
-					QString body =
-						QString(obs_module_text("OBSWebSocket.TrayNotification.AuthenticationFailed.Body"))
-							.arg(QString::fromStdString(session->RemoteAddress()));
-					Utils::Platform::SendTrayNotification(QSystemTrayIcon::Warning, title, body);
-				}
 				ret.closeCode = WebSocketCloseCode::AuthenticationFailed;
 				ret.closeReason = "Authentication failed.";
 				return;
@@ -154,15 +146,6 @@ void WebSocketServer::ProcessMessage(SessionPtr session, WebSocketServer::Proces
 
 		// Mark session as identified
 		session->SetIsIdentified(true);
-
-		// Send desktop notification. TODO: Move to UI code
-		auto conf = GetConfig();
-		if (conf && conf->AlertsEnabled) {
-			QString title = obs_module_text("OBSWebSocket.TrayNotification.Identified.Title");
-			QString body = QString(obs_module_text("OBSWebSocket.TrayNotification.Identified.Body"))
-					       .arg(QString::fromStdString(session->RemoteAddress()));
-			Utils::Platform::SendTrayNotification(QSystemTrayIcon::Information, title, body);
-		}
 
 		ret.result["op"] = WebSocketOpCode::Identified;
 		ret.result["d"]["negotiatedRpcVersion"] = session->RpcVersion();
@@ -359,7 +342,7 @@ void WebSocketServer::BroadcastEvent(uint64_t requiredIntent, const std::string 
 	if (!_server.is_listening() || !_obsReady)
 		return;
 
-	_threadPool.start(Utils::Compat::CreateFunctionRunnable([=]() {
+	_threadPool.start([=]() {
 		// Populate message object
 		json eventMessage;
 		eventMessage["op"] = 5;
@@ -407,5 +390,5 @@ void WebSocketServer::BroadcastEvent(uint64_t requiredIntent, const std::string 
 		lock.unlock();
 		if (IsDebugEnabled() && (EventSubscription::All & requiredIntent) != 0) // Don't log high volume events
 			blog(LOG_INFO, "[WebSocketServer::BroadcastEvent] Outgoing event:\n%s", eventMessage.dump(2).c_str());
-	}));
+	});
 }

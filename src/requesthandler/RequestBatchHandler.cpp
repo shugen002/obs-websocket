@@ -161,7 +161,7 @@ static void ObsTickCallback(void *param, float)
 }
 
 std::vector<RequestResult>
-RequestBatchHandler::ProcessRequestBatch(QThreadPool &threadPool, SessionPtr session,
+RequestBatchHandler::ProcessRequestBatch(Utils::Compat::SimpleThreadPool &threadPool, SessionPtr session,
 					 RequestBatchExecutionType::RequestBatchExecutionType executionType,
 					 std::vector<RequestBatchRequest> &requests, json &variables, bool haltOnFailure)
 {
@@ -210,14 +210,14 @@ RequestBatchHandler::ProcessRequestBatch(QThreadPool &threadPool, SessionPtr ses
 
 		// Submit each request as a task to the thread pool to be processed ASAP
 		for (auto &request : requests) {
-			threadPool.start(Utils::Compat::CreateFunctionRunnable([&parallelResults, &request]() {
+			threadPool.start([&parallelResults, &request]() {
 				RequestResult requestResult = parallelResults.requestHandler.ProcessRequest(request);
 
 				std::unique_lock<std::mutex> lock(parallelResults.conditionMutex);
 				parallelResults.results.push_back(requestResult);
 				lock.unlock();
 				parallelResults.condition.notify_one();
-			}));
+			});
 		}
 
 		// Wait for the last request to finish processing

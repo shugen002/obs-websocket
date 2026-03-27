@@ -122,15 +122,6 @@ void EventHandler::HandleSceneNameChanged(obs_source_t *source, std::string oldS
  */
 void EventHandler::HandleCurrentProgramSceneChanged()
 {
-	OBSSourceAutoRelease currentScene = obs_frontend_get_current_scene();
-
-	if (!currentScene)
-		return;
-
-	json eventData;
-	eventData["sceneName"] = obs_source_get_name(currentScene);
-	eventData["sceneUuid"] = obs_source_get_uuid(currentScene);
-	BroadcastEvent(EventSubscription::Scenes, "CurrentProgramSceneChanged", eventData);
 }
 
 /**
@@ -149,16 +140,6 @@ void EventHandler::HandleCurrentProgramSceneChanged()
  */
 void EventHandler::HandleCurrentPreviewSceneChanged()
 {
-	OBSSourceAutoRelease currentPreviewScene = obs_frontend_get_current_preview_scene();
-
-	// This event may be called when OBS is not in studio mode, however retreiving the source while not in studio mode will return null.
-	if (!currentPreviewScene)
-		return;
-
-	json eventData;
-	eventData["sceneName"] = obs_source_get_name(currentPreviewScene);
-	eventData["sceneUuid"] = obs_source_get_uuid(currentPreviewScene);
-	BroadcastEvent(EventSubscription::Scenes, "CurrentPreviewSceneChanged", eventData);
 }
 
 /**

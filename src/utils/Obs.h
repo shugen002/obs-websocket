@@ -21,7 +21,6 @@ with this program. If not, see <https://www.gnu.org/licenses/>
 
 #include <string>
 #include <obs.hpp>
-#include <obs-frontend-api.h>
 
 #include "Json.h"
 

@@ -35,12 +35,6 @@ with this program. If not, see <https://www.gnu.org/licenses/>
  */
 void EventHandler::HandleCurrentSceneTransitionChanged()
 {
-	OBSSourceAutoRelease transition = obs_frontend_get_current_transition();
-
-	json eventData;
-	eventData["transitionName"] = obs_source_get_name(transition);
-	eventData["transitionUuid"] = obs_source_get_uuid(transition);
-	BroadcastEvent(EventSubscription::Transitions, "CurrentSceneTransitionChanged", eventData);
 }
 
 /**
@@ -58,9 +52,6 @@ void EventHandler::HandleCurrentSceneTransitionChanged()
  */
 void EventHandler::HandleCurrentSceneTransitionDurationChanged()
 {
-	json eventData;
-	eventData["transitionDuration"] = obs_frontend_get_transition_duration();
-	BroadcastEvent(EventSubscription::Transitions, "CurrentSceneTransitionDurationChanged", eventData);
 }
 
 /**

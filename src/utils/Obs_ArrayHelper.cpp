@@ -42,18 +42,12 @@ static std::vector<std::string> ConvertStringArray(char **array)
 
 std::vector<std::string> Utils::Obs::ArrayHelper::GetSceneCollectionList()
 {
-	char **sceneCollections = obs_frontend_get_scene_collections();
-	auto ret = ConvertStringArray(sceneCollections);
-	bfree(sceneCollections);
-	return ret;
+	return {};
 }
 
 std::vector<std::string> Utils::Obs::ArrayHelper::GetProfileList()
 {
-	char **profiles = obs_frontend_get_profiles();
-	auto ret = ConvertStringArray(profiles);
-	bfree(profiles);
-	return ret;
+	return {};
 }
 
 std::vector<obs_hotkey_t *> Utils::Obs::ArrayHelper::GetHotkeyList()
@@ -86,26 +80,21 @@ std::vector<std::string> Utils::Obs::ArrayHelper::GetHotkeyNameList()
 
 std::vector<json> Utils::Obs::ArrayHelper::GetSceneList()
 {
-	obs_frontend_source_list sceneList = {};
-	obs_frontend_get_scenes(&sceneList);
-
 	std::vector<json> ret;
-	ret.reserve(sceneList.sources.num);
-	for (size_t i = 0; i < sceneList.sources.num; i++) {
-		obs_source_t *scene = sceneList.sources.array[i];
+
+	auto cb = [](void *param, obs_source_t *scene) {
+		auto ret = static_cast<std::vector<json> *>(param);
 
 		json sceneJson;
 		sceneJson["sceneName"] = obs_source_get_name(scene);
 		sceneJson["sceneUuid"] = obs_source_get_uuid(scene);
-		sceneJson["sceneIndex"] = sceneList.sources.num - i - 1;
+		sceneJson["sceneIndex"] = ret->size();
 
-		ret.push_back(sceneJson);
-	}
+		ret->push_back(sceneJson);
+		return true;
+	};
 
-	obs_frontend_source_list_free(&sceneList);
-
-	// Reverse the vector order to match other array returns
-	std::reverse(ret.begin(), ret.end());
+	obs_enum_scenes(cb, &ret);
 
 	return ret;
 }
@@ -298,25 +287,7 @@ std::vector<std::string> Utils::Obs::ArrayHelper::GetTransitionKindList()
 
 std::vector<json> Utils::Obs::ArrayHelper::GetSceneTransitionList()
 {
-	obs_frontend_source_list transitionList = {};
-	obs_frontend_get_transitions(&transitionList);
-
-	std::vector<json> ret;
-	ret.reserve(transitionList.sources.num);
-	for (size_t i = 0; i < transitionList.sources.num; i++) {
-		obs_source_t *transition = transitionList.sources.array[i];
-		json transitionJson;
-		transitionJson["transitionName"] = obs_source_get_name(transition);
-		transitionJson["transitionUuid"] = obs_source_get_uuid(transition);
-		transitionJson["transitionKind"] = obs_source_get_id(transition);
-		transitionJson["transitionFixed"] = obs_transition_fixed(transition);
-		transitionJson["transitionConfigurable"] = obs_source_configurable(transition);
-		ret.push_back(transitionJson);
-	}
-
-	obs_frontend_source_list_free(&transitionList);
-
-	return ret;
+	return {};
 }
 
 std::vector<std::string> Utils::Obs::ArrayHelper::GetFilterKindList()

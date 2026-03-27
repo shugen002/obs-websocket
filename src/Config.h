@@ -20,7 +20,6 @@ with this program. If not, see <https://www.gnu.org/licenses/>
 #pragma once
 
 #include <atomic>
-#include <QString>
 #include <util/config-file.h>
 
 #include "utils/Json.h"
@@ -34,12 +33,12 @@ struct Config {
 	std::atomic<bool> PasswordOverridden = false;
 
 	std::atomic<bool> FirstLoad = true;
-	std::atomic<bool> ServerEnabled = false;
+	std::atomic<bool> ServerEnabled = true;
 	std::atomic<uint16_t> ServerPort = 4455;
 	std::atomic<bool> Ipv4Only = false;
 	std::atomic<bool> DebugEnabled = false;
 	std::atomic<bool> AlertsEnabled = false;
-	std::atomic<bool> AuthRequired = true;
+	std::atomic<bool> AuthRequired = false;
 	std::string ServerPassword;
 };
 

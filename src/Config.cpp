@@ -19,8 +19,6 @@ with this program. If not, see <https://www.gnu.org/licenses/>
 
 #include <filesystem>
 
-#include <obs-frontend-api.h>
-
 #include "Config.h"
 #include "utils/Crypto.h"
 #include "utils/Platform.h"
@@ -92,11 +90,12 @@ void Config::Load(json config)
 		Save();
 
 	// Process `--websocket_port` override
-	QString portArgument = Utils::Platform::GetCommandLineArgument(CMDLINE_WEBSOCKET_PORT);
+	std::string portArgument = Utils::Platform::GetCommandLineArgument(CMDLINE_WEBSOCKET_PORT);
 	if (portArgument != "") {
-		bool ok;
-		uint16_t serverPort = portArgument.toUShort(&ok);
-		if (ok) {
+		char *endptr = nullptr;
+		unsigned long parsed = strtoul(portArgument.c_str(), &endptr, 10);
+		if (endptr != portArgument.c_str() && *endptr == '\0' && parsed <= 65535) {
+		uint16_t serverPort = (uint16_t)parsed;
 			blog(LOG_INFO, "[Config::Load] --websocket_port passed. Overriding WebSocket port with: %d", serverPort);
 			PortOverridden = true;
 			ServerPort = serverPort;
@@ -112,12 +111,12 @@ void Config::Load(json config)
 	}
 
 	// Process `--websocket_password` override
-	QString passwordArgument = Utils::Platform::GetCommandLineArgument(CMDLINE_WEBSOCKET_PASSWORD);
+	std::string passwordArgument = Utils::Platform::GetCommandLineArgument(CMDLINE_WEBSOCKET_PASSWORD);
 	if (passwordArgument != "") {
 		blog(LOG_INFO, "[Config::Load] --websocket_password passed. Overriding WebSocket password.");
 		PasswordOverridden = true;
 		AuthRequired = true;
-		ServerPassword = passwordArgument.toStdString();
+		ServerPassword = passwordArgument;
 	}
 
 	// Process `--websocket_debug` override
@@ -151,45 +150,9 @@ void Config::Save()
 		blog(LOG_ERROR, "[Config::Save] Failed to write config file!");
 }
 
-// Finds any old values in global.ini and removes them, then returns the values as JSON
 json MigrateGlobalConfigData()
 {
-	// Get existing global config
-	config_t *config = obs_frontend_get_app_config();
-	json ret;
-
-	// Move values to temporary JSON blob
-	if (config_has_user_value(config, CONFIG_SECTION_NAME, CONFIG_PARAM_FIRSTLOAD)) {
-		ret[PARAM_FIRSTLOAD] = config_get_bool(config, CONFIG_SECTION_NAME, CONFIG_PARAM_FIRSTLOAD);
-		config_remove_value(config, CONFIG_SECTION_NAME, CONFIG_PARAM_FIRSTLOAD);
-	}
-	if (config_has_user_value(config, CONFIG_SECTION_NAME, CONFIG_PARAM_ENABLED)) {
-		ret[PARAM_ENABLED] = config_get_bool(config, CONFIG_SECTION_NAME, CONFIG_PARAM_ENABLED);
-		config_remove_value(config, CONFIG_SECTION_NAME, CONFIG_PARAM_ENABLED);
-	}
-	if (config_has_user_value(config, CONFIG_SECTION_NAME, CONFIG_PARAM_PORT)) {
-		ret[PARAM_PORT] = config_get_uint(config, CONFIG_SECTION_NAME, CONFIG_PARAM_PORT);
-		config_remove_value(config, CONFIG_SECTION_NAME, CONFIG_PARAM_PORT);
-	}
-	if (config_has_user_value(config, CONFIG_SECTION_NAME, CONFIG_PARAM_ALERTS)) {
-		ret[PARAM_ALERTS] = config_get_bool(config, CONFIG_SECTION_NAME, CONFIG_PARAM_ALERTS);
-		config_remove_value(config, CONFIG_SECTION_NAME, CONFIG_PARAM_ALERTS);
-	}
-	if (config_has_user_value(config, CONFIG_SECTION_NAME, CONFIG_PARAM_AUTHREQUIRED)) {
-		ret[PARAM_AUTHREQUIRED] = config_get_bool(config, CONFIG_SECTION_NAME, CONFIG_PARAM_AUTHREQUIRED);
-		config_remove_value(config, CONFIG_SECTION_NAME, CONFIG_PARAM_AUTHREQUIRED);
-	}
-	if (config_has_user_value(config, CONFIG_SECTION_NAME, CONFIG_PARAM_PASSWORD)) {
-		ret[PARAM_PASSWORD] = config_get_string(config, CONFIG_SECTION_NAME, CONFIG_PARAM_PASSWORD);
-		config_remove_value(config, CONFIG_SECTION_NAME, CONFIG_PARAM_PASSWORD);
-	}
-
-	if (!ret.is_null()) {
-		blog(LOG_INFO, "[MigrateGlobalConfigData] Some configurations have been migrated from old config");
-		config_save(config);
-	}
-
-	return ret;
+	return json();
 }
 
 // Migration from storing persistent data in obsWebSocketPersistentData.json to the module config directory
@@ -208,20 +171,8 @@ bool MigratePersistentData()
 		return false;
 	}
 
-	// Move any existing persistent data to module config directory, then delete old file
-	auto oldPersistentDataPath = std::filesystem::u8path(Utils::Obs::StringHelper::GetCurrentProfilePath() +
-							     "/../../../obsWebSocketPersistentData.json");
-	if (std::filesystem::exists(oldPersistentDataPath, ec)) {
-		auto persistentDataPath =
-			std::filesystem::u8path(Utils::Obs::StringHelper::GetModuleConfigPath("persistent_data.json"));
-		std::filesystem::copy_file(oldPersistentDataPath, persistentDataPath, ec);
-		std::filesystem::remove(oldPersistentDataPath, ec);
-		blog(LOG_INFO, "[MigratePersistentData] Persistent data migrated to new path");
-	}
-	if (ec) {
-		blog(LOG_ERROR, "[MigratePersistentData] Failed to move persistent data: %s", ec.message().c_str());
-		return false;
-	}
+	// Skip legacy migration since obs_frontend profile path is not available
+	(void)ec;
 
 	return true;
 }

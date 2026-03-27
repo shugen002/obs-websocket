@@ -11,16 +11,8 @@ if(NOT ENABLE_WEBSOCKET)
   return()
 endif()
 
-# Find Qt
-find_package(Qt6 REQUIRED Core Widgets Svg Network)
-
 # Find nlohmann JSON
 find_package(nlohmann_json 3.11 REQUIRED)
-
-# Find qrcodegencpp
-set(CMAKE_FIND_PACKAGE_PREFER_CONFIG ON)
-find_package(qrcodegencpp REQUIRED)
-set(CMAKE_FIND_PACKAGE_PREFER_CONFIG OFF)
 
 # Find WebSocket++
 find_package(Websocketpp 0.8 REQUIRED)
@@ -36,11 +28,6 @@ target_sources(
   PRIVATE # cmake-format: sortable
           src/Config.cpp
           src/Config.h
-          src/forms/ConnectInfo.cpp
-          src/forms/ConnectInfo.h
-          src/forms/resources.qrc
-          src/forms/SettingsDialog.cpp
-          src/forms/SettingsDialog.h
           src/obs-websocket.cpp
           src/obs-websocket.h
           src/WebSocketApi.cpp
@@ -156,30 +143,14 @@ target_compile_options(
 target_link_libraries(
   obs-websocket
   PRIVATE OBS::libobs
-          OBS::frontend-api
           OBS::websocket-api
-          Qt::Core
-          Qt::Widgets
-          Qt::Svg
-          Qt::Network
           nlohmann_json::nlohmann_json
           Websocketpp::Websocketpp
-          Asio::Asio
-          qrcodegencpp::qrcodegencpp)
+          Asio::Asio)
 
 target_link_options(obs-websocket PRIVATE $<$<PLATFORM_ID:Windows>:/IGNORE:4099>)
 
 set_target_properties_obs(
   obs-websocket
   PROPERTIES FOLDER plugins
-             PREFIX ""
-             AUTOMOC ON
-             AUTOUIC ON
-             AUTORCC ON)
-
-if(OS_WINDOWS)
-  set_property(
-    TARGET obs-websocket
-    APPEND
-    PROPERTY AUTORCC_OPTIONS --format-version 1)
-endif()
+             PREFIX "")

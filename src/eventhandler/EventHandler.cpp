@@ -23,8 +23,6 @@ EventHandler::EventHandler()
 {
 	blog_debug("[EventHandler::EventHandler] Setting up...");
 
-	obs_frontend_add_event_callback(OnFrontendEvent, this);
-
 	signal_handler_t *coreSignalHandler = obs_get_signal_handler();
 	if (coreSignalHandler) {
 		coreSignals.emplace_back(coreSignalHandler, "source_create", SourceCreatedMultiHandler, this);
@@ -41,14 +39,16 @@ EventHandler::EventHandler()
 		blog(LOG_ERROR, "[EventHandler::EventHandler] Unable to get libobs signal handler!");
 	}
 
+	_obsReady = true;
+	if (_obsReadyCallback)
+		_obsReadyCallback(true);
+
 	blog_debug("[EventHandler::EventHandler] Finished.");
 }
 
 EventHandler::~EventHandler()
 {
 	blog_debug("[EventHandler::~EventHandler] Shutting down...");
-
-	obs_frontend_remove_event_callback(OnFrontendEvent, this);
 
 	coreSignals.clear();
 
@@ -251,235 +251,6 @@ void EventHandler::DisconnectSourceSignals(obs_source_t *source)
 		signal_handler_disconnect(sh, "enable", HandleSourceFilterEnableStateChanged, this);
 		signal_handler_disconnect(sh, "rename", HandleSourceFilterNameChanged, this);
 	}
-}
-
-void EventHandler::OnFrontendEvent(enum obs_frontend_event event, void *private_data)
-{
-	auto eventHandler = static_cast<EventHandler *>(private_data);
-
-	switch (event) {
-	// General
-	case OBS_FRONTEND_EVENT_FINISHED_LOADING:
-		eventHandler->FrontendFinishedLoadingMultiHandler();
-		break;
-	case OBS_FRONTEND_EVENT_SCRIPTING_SHUTDOWN:
-		eventHandler->FrontendExitMultiHandler();
-		break;
-
-	// Config
-	case OBS_FRONTEND_EVENT_SCENE_COLLECTION_CHANGING: {
-		obs_frontend_source_list transitions = {};
-		obs_frontend_get_transitions(&transitions);
-		for (size_t i = 0; i < transitions.sources.num; i++) {
-			obs_source_t *transition = transitions.sources.array[i];
-			eventHandler->DisconnectSourceSignals(transition);
-		}
-		obs_frontend_source_list_free(&transitions);
-	}
-		// Before ready update to allow event to broadcast
-		eventHandler->HandleCurrentSceneCollectionChanging();
-		eventHandler->_obsReady = false;
-		if (eventHandler->_obsReadyCallback)
-			eventHandler->_obsReadyCallback(false);
-		break;
-	case OBS_FRONTEND_EVENT_SCENE_COLLECTION_CHANGED: {
-		obs_frontend_source_list transitions = {};
-		obs_frontend_get_transitions(&transitions);
-		for (size_t i = 0; i < transitions.sources.num; i++) {
-			obs_source_t *transition = transitions.sources.array[i];
-			eventHandler->ConnectSourceSignals(transition);
-		}
-		obs_frontend_source_list_free(&transitions);
-	}
-		eventHandler->_obsReady = true;
-		if (eventHandler->_obsReadyCallback)
-			eventHandler->_obsReadyCallback(true);
-		eventHandler->HandleCurrentSceneCollectionChanged();
-		break;
-	case OBS_FRONTEND_EVENT_SCENE_COLLECTION_LIST_CHANGED:
-		eventHandler->HandleSceneCollectionListChanged();
-		break;
-	case OBS_FRONTEND_EVENT_PROFILE_CHANGING:
-		eventHandler->HandleCurrentProfileChanging();
-		break;
-	case OBS_FRONTEND_EVENT_PROFILE_CHANGED:
-		eventHandler->HandleCurrentProfileChanged();
-		break;
-	case OBS_FRONTEND_EVENT_PROFILE_LIST_CHANGED:
-		eventHandler->HandleProfileListChanged();
-		break;
-
-	// Scenes
-	case OBS_FRONTEND_EVENT_SCENE_CHANGED:
-		eventHandler->HandleCurrentProgramSceneChanged();
-		break;
-	case OBS_FRONTEND_EVENT_PREVIEW_SCENE_CHANGED:
-		eventHandler->HandleCurrentPreviewSceneChanged();
-		break;
-	case OBS_FRONTEND_EVENT_SCENE_LIST_CHANGED:
-		eventHandler->HandleSceneListChanged();
-		break;
-
-	// Transitions
-	case OBS_FRONTEND_EVENT_TRANSITION_CHANGED:
-		eventHandler->HandleCurrentSceneTransitionChanged();
-		break;
-	case OBS_FRONTEND_EVENT_TRANSITION_LIST_CHANGED: {
-		obs_frontend_source_list transitions = {};
-		obs_frontend_get_transitions(&transitions);
-		for (size_t i = 0; i < transitions.sources.num; i++) {
-			obs_source_t *transition = transitions.sources.array[i];
-			eventHandler->ConnectSourceSignals(transition);
-		}
-		obs_frontend_source_list_free(&transitions);
-	} break;
-	case OBS_FRONTEND_EVENT_TRANSITION_DURATION_CHANGED:
-		eventHandler->HandleCurrentSceneTransitionDurationChanged();
-		break;
-
-	// Outputs
-	case OBS_FRONTEND_EVENT_STREAMING_STARTING:
-		eventHandler->HandleStreamStateChanged(OBS_WEBSOCKET_OUTPUT_STARTING);
-		{
-			// Connect signals for stream output reconnects (hacky)
-			OBSOutputAutoRelease streamOutput = obs_frontend_get_streaming_output();
-			if (streamOutput) {
-				signal_handler_t *sh = obs_output_get_signal_handler(streamOutput);
-				signal_handler_connect(sh, "reconnect", StreamOutputReconnectHandler, private_data);
-				signal_handler_connect(sh, "reconnect_success", StreamOutputReconnectSuccessHandler, private_data);
-			}
-		}
-		break;
-	case OBS_FRONTEND_EVENT_STREAMING_STARTED:
-		eventHandler->HandleStreamStateChanged(OBS_WEBSOCKET_OUTPUT_STARTED);
-		break;
-	case OBS_FRONTEND_EVENT_STREAMING_STOPPING:
-		eventHandler->HandleStreamStateChanged(OBS_WEBSOCKET_OUTPUT_STOPPING);
-		{
-			// Disconnect signals for stream output reconnects
-			OBSOutputAutoRelease streamOutput = obs_frontend_get_streaming_output();
-			if (streamOutput) {
-				signal_handler_t *sh = obs_output_get_signal_handler(streamOutput);
-				signal_handler_disconnect(sh, "reconnect", StreamOutputReconnectHandler, private_data);
-				signal_handler_disconnect(sh, "reconnect_success", StreamOutputReconnectSuccessHandler,
-							  private_data);
-			}
-		}
-		break;
-	case OBS_FRONTEND_EVENT_STREAMING_STOPPED:
-		eventHandler->HandleStreamStateChanged(OBS_WEBSOCKET_OUTPUT_STOPPED);
-		break;
-	case OBS_FRONTEND_EVENT_RECORDING_STARTING:
-		eventHandler->HandleRecordStateChanged(OBS_WEBSOCKET_OUTPUT_STARTING);
-		break;
-	case OBS_FRONTEND_EVENT_RECORDING_STARTED:
-		eventHandler->HandleRecordStateChanged(OBS_WEBSOCKET_OUTPUT_STARTED);
-		{
-			OBSOutputAutoRelease recordOutput = obs_frontend_get_recording_output();
-			if (recordOutput) {
-				signal_handler_t *sh = obs_output_get_signal_handler(recordOutput);
-				eventHandler->recordFileChangedSignal.Connect(sh, "file_changed", HandleRecordFileChanged,
-									      private_data);
-			}
-		}
-		break;
-	case OBS_FRONTEND_EVENT_RECORDING_STOPPING:
-		eventHandler->HandleRecordStateChanged(OBS_WEBSOCKET_OUTPUT_STOPPING);
-		break;
-	case OBS_FRONTEND_EVENT_RECORDING_STOPPED:
-		eventHandler->HandleRecordStateChanged(OBS_WEBSOCKET_OUTPUT_STOPPED);
-		eventHandler->recordFileChangedSignal.Disconnect();
-		break;
-	case OBS_FRONTEND_EVENT_RECORDING_PAUSED:
-		eventHandler->HandleRecordStateChanged(OBS_WEBSOCKET_OUTPUT_PAUSED);
-		break;
-	case OBS_FRONTEND_EVENT_RECORDING_UNPAUSED:
-		eventHandler->HandleRecordStateChanged(OBS_WEBSOCKET_OUTPUT_RESUMED);
-		break;
-	case OBS_FRONTEND_EVENT_REPLAY_BUFFER_STARTING:
-		eventHandler->HandleReplayBufferStateChanged(OBS_WEBSOCKET_OUTPUT_STARTING);
-		break;
-	case OBS_FRONTEND_EVENT_REPLAY_BUFFER_STARTED:
-		eventHandler->HandleReplayBufferStateChanged(OBS_WEBSOCKET_OUTPUT_STARTED);
-		break;
-	case OBS_FRONTEND_EVENT_REPLAY_BUFFER_STOPPING:
-		eventHandler->HandleReplayBufferStateChanged(OBS_WEBSOCKET_OUTPUT_STOPPING);
-		break;
-	case OBS_FRONTEND_EVENT_REPLAY_BUFFER_STOPPED:
-		eventHandler->HandleReplayBufferStateChanged(OBS_WEBSOCKET_OUTPUT_STOPPED);
-		break;
-	case OBS_FRONTEND_EVENT_VIRTUALCAM_STARTED:
-		eventHandler->HandleVirtualcamStateChanged(OBS_WEBSOCKET_OUTPUT_STARTED);
-		break;
-	case OBS_FRONTEND_EVENT_VIRTUALCAM_STOPPED:
-		eventHandler->HandleVirtualcamStateChanged(OBS_WEBSOCKET_OUTPUT_STOPPED);
-		break;
-	case OBS_FRONTEND_EVENT_REPLAY_BUFFER_SAVED:
-		eventHandler->HandleReplayBufferSaved();
-		break;
-
-	// Ui
-	case OBS_FRONTEND_EVENT_STUDIO_MODE_ENABLED:
-		eventHandler->HandleStudioModeStateChanged(true);
-		break;
-	case OBS_FRONTEND_EVENT_STUDIO_MODE_DISABLED:
-		eventHandler->HandleStudioModeStateChanged(false);
-		break;
-	case OBS_FRONTEND_EVENT_SCREENSHOT_TAKEN:
-		eventHandler->HandleScreenshotSaved();
-		break;
-
-	default:
-		break;
-	}
-}
-
-void EventHandler::FrontendFinishedLoadingMultiHandler()
-{
-	blog_debug(
-		"[EventHandler::FrontendFinishedLoadingMultiHandler] OBS has finished loading. Connecting final handlers and enabling events...");
-
-	// Enumerate all scene transitions and connect each one
-	{
-		obs_frontend_source_list transitions = {};
-		obs_frontend_get_transitions(&transitions);
-		for (size_t i = 0; i < transitions.sources.num; i++) {
-			obs_source_t *transition = transitions.sources.array[i];
-			ConnectSourceSignals(transition);
-		}
-		obs_frontend_source_list_free(&transitions);
-	}
-
-	_obsReady = true;
-	if (_obsReadyCallback)
-		_obsReadyCallback(true);
-
-	blog_debug("[EventHandler::FrontendFinishedLoadingMultiHandler] Finished.");
-}
-
-void EventHandler::FrontendExitMultiHandler()
-{
-	blog_debug("[EventHandler::FrontendExitMultiHandler] OBS is unloading. Disabling events...");
-
-	HandleExitStarted();
-
-	// Disconnect source signals and disable events when OBS starts unloading (to reduce extra logging).
-	_obsReady = false;
-	if (_obsReadyCallback)
-		_obsReadyCallback(false);
-
-	// Enumerate all scene transitions and disconnect each one
-	{
-		obs_frontend_source_list transitions = {};
-		obs_frontend_get_transitions(&transitions);
-		for (size_t i = 0; i < transitions.sources.num; i++) {
-			obs_source_t *transition = transitions.sources.array[i];
-			DisconnectSourceSignals(transition);
-		}
-		obs_frontend_source_list_free(&transitions);
-	}
-
-	blog_debug("[EventHandler::FrontendExitMultiHandler] Finished.");
 }
 
 // Only called for creation of a public source

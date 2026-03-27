@@ -60,20 +60,10 @@ RequestResult RequestHandler::GetTransitionKindList(const Request &)
 RequestResult RequestHandler::GetSceneTransitionList(const Request &)
 {
 	json responseData;
-
-	OBSSourceAutoRelease transition = obs_frontend_get_current_transition();
-	if (transition) {
-		responseData["currentSceneTransitionName"] = obs_source_get_name(transition);
-		responseData["currentSceneTransitionUuid"] = obs_source_get_uuid(transition);
-		responseData["currentSceneTransitionKind"] = obs_source_get_id(transition);
-	} else {
-		responseData["currentSceneTransitionName"] = nullptr;
-		responseData["currentSceneTransitionUuid"] = nullptr;
-		responseData["currentSceneTransitionKind"] = nullptr;
-	}
-
+	responseData["currentSceneTransitionName"] = nullptr;
+	responseData["currentSceneTransitionUuid"] = nullptr;
+	responseData["currentSceneTransitionKind"] = nullptr;
 	responseData["transitions"] = Utils::Obs::ArrayHelper::GetSceneTransitionList();
-
 	return RequestResult::Success(responseData);
 }
 
@@ -97,34 +87,7 @@ RequestResult RequestHandler::GetSceneTransitionList(const Request &)
  */
 RequestResult RequestHandler::GetCurrentSceneTransition(const Request &)
 {
-	OBSSourceAutoRelease transition = obs_frontend_get_current_transition();
-	if (!transition)
-		return RequestResult::Error(RequestStatus::InvalidResourceState,
-					    "OBS does not currently have a scene transition set."); // This should not happen!
-
-	json responseData;
-	responseData["transitionName"] = obs_source_get_name(transition);
-	responseData["transitionUuid"] = obs_source_get_uuid(transition);
-	responseData["transitionKind"] = obs_source_get_id(transition);
-
-	if (obs_transition_fixed(transition)) {
-		responseData["transitionFixed"] = true;
-		responseData["transitionDuration"] = nullptr;
-	} else {
-		responseData["transitionFixed"] = false;
-		responseData["transitionDuration"] = obs_frontend_get_transition_duration();
-	}
-
-	if (obs_source_configurable(transition)) {
-		responseData["transitionConfigurable"] = true;
-		OBSDataAutoRelease transitionSettings = obs_source_get_settings(transition);
-		responseData["transitionSettings"] = Utils::Json::ObsDataToJson(transitionSettings);
-	} else {
-		responseData["transitionConfigurable"] = false;
-		responseData["transitionSettings"] = nullptr;
-	}
-
-	return RequestResult::Success(responseData);
+	return RequestResult::Error(RequestStatus::UnsupportedFeature);
 }
 
 /**
@@ -148,15 +111,7 @@ RequestResult RequestHandler::SetCurrentSceneTransition(const Request &request)
 	if (!request.ValidateString("transitionName", statusCode, comment))
 		return RequestResult::Error(statusCode, comment);
 
-	std::string transitionName = request.RequestData["transitionName"];
-
-	OBSSourceAutoRelease transition = Utils::Obs::SearchHelper::GetSceneTransitionByName(transitionName);
-	if (!transition)
-		return RequestResult::Error(RequestStatus::ResourceNotFound, "No scene transition was found by that name.");
-
-	obs_frontend_set_current_transition(transition);
-
-	return RequestResult::Success();
+	return RequestResult::Error(RequestStatus::UnsupportedFeature);
 }
 
 /**
@@ -178,11 +133,7 @@ RequestResult RequestHandler::SetCurrentSceneTransitionDuration(const Request &r
 	if (!request.ValidateNumber("transitionDuration", statusCode, comment, 50, 20000))
 		return RequestResult::Error(statusCode, comment);
 
-	int transitionDuration = request.RequestData["transitionDuration"];
-
-	obs_frontend_set_transition_duration(transitionDuration);
-
-	return RequestResult::Success();
+	return RequestResult::Error(RequestStatus::UnsupportedFeature);
 }
 
 /**
@@ -205,36 +156,7 @@ RequestResult RequestHandler::SetCurrentSceneTransitionSettings(const Request &r
 	if (!request.ValidateObject("transitionSettings", statusCode, comment, true))
 		return RequestResult::Error(statusCode, comment);
 
-	OBSSourceAutoRelease transition = obs_frontend_get_current_transition();
-	if (!transition)
-		return RequestResult::Error(RequestStatus::InvalidResourceState,
-					    "OBS does not currently have a scene transition set."); // This should not happen!
-
-	if (!obs_source_configurable(transition))
-		return RequestResult::Error(RequestStatus::ResourceNotConfigurable,
-					    "The current transition does not support custom settings.");
-
-	bool overlay = true;
-	if (request.Contains("overlay")) {
-		if (!request.ValidateOptionalBoolean("overlay", statusCode, comment))
-			return RequestResult::Error(statusCode, comment);
-
-		overlay = request.RequestData["overlay"];
-	}
-
-	OBSDataAutoRelease newSettings = Utils::Json::JsonToObsData(request.RequestData["transitionSettings"]);
-	if (!newSettings)
-		return RequestResult::Error(RequestStatus::RequestProcessingFailed,
-					    "An internal data conversion operation failed. Please report this!");
-
-	if (overlay)
-		obs_source_update(transition, newSettings);
-	else
-		obs_source_reset_settings(transition, newSettings);
-
-	obs_source_update_properties(transition);
-
-	return RequestResult::Success();
+	return RequestResult::Error(RequestStatus::UnsupportedFeature);
 }
 
 /**
@@ -253,82 +175,20 @@ RequestResult RequestHandler::SetCurrentSceneTransitionSettings(const Request &r
  */
 RequestResult RequestHandler::GetCurrentSceneTransitionCursor(const Request &)
 {
-	OBSSourceAutoRelease transition = obs_frontend_get_current_transition();
-	if (!transition)
-		return RequestResult::Error(RequestStatus::InvalidResourceState,
-					    "OBS does not currently have a scene transition set."); // This should not happen!
-
-	json responseData;
-	responseData["transitionCursor"] = obs_transition_get_time(transition);
-
-	return RequestResult::Success(responseData);
+	return RequestResult::Error(RequestStatus::UnsupportedFeature);
 }
 
-/**
- * Triggers the current scene transition. Same functionality as the `Transition` button in studio mode.
- *
- * @requestType TriggerStudioModeTransition
- * @complexity 1
- * @rpcVersion -1
- * @initialVersion 5.0.0
- * @api requests
- * @category transitions
- */
 RequestResult RequestHandler::TriggerStudioModeTransition(const Request &)
 {
-	if (!obs_frontend_preview_program_mode_active())
-		return RequestResult::Error(RequestStatus::StudioModeNotActive);
-
-	OBSSourceAutoRelease previewScene = obs_frontend_get_current_preview_scene();
-
-	obs_frontend_set_current_scene(previewScene);
-
-	return RequestResult::Success();
+	return RequestResult::Error(RequestStatus::UnsupportedFeature);
 }
 
-/**
- * Sets the position of the TBar.
- *
- * **Very important note**: This will be deprecated and replaced in a future version of obs-websocket.
- *
- * @requestField position | Number  | New position | >= 0.0, <= 1.0
- * @requestField ?release | Boolean | Whether to release the TBar. Only set `false` if you know that you will be sending another position update | `true`
- *
- * @requestType SetTBarPosition
- * @complexity 3
- * @rpcVersion -1
- * @initialVersion 5.0.0
- * @api requests
- * @category transitions
- */
 RequestResult RequestHandler::SetTBarPosition(const Request &request)
 {
-	if (!obs_frontend_preview_program_mode_active())
-		return RequestResult::Error(RequestStatus::StudioModeNotActive);
-
 	RequestStatus::RequestStatus statusCode;
 	std::string comment;
 	if (!request.ValidateNumber("position", statusCode, comment, 0.0, 1.0))
 		return RequestResult::Error(statusCode, comment);
 
-	bool release = true;
-	if (request.Contains("release")) {
-		if (!request.ValidateOptionalBoolean("release", statusCode, comment))
-			return RequestResult::Error(statusCode, comment);
-		release = request.RequestData["release"];
-	}
-
-	OBSSourceAutoRelease transition = obs_frontend_get_current_transition();
-	if (!transition)
-		return RequestResult::Error(RequestStatus::InvalidResourceState,
-					    "OBS does not currently have a scene transition set."); // This should not happen!
-
-	float position = request.RequestData["position"];
-
-	obs_frontend_set_tbar_position((int)round(position * 1024.0));
-
-	if (release)
-		obs_frontend_release_tbar();
-
-	return RequestResult::Success();
+	return RequestResult::Error(RequestStatus::UnsupportedFeature);
 }
