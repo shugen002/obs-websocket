@@ -17,111 +17,124 @@ You should have received a copy of the GNU General Public License along
 with this program. If not, see <https://www.gnu.org/licenses/>
 */
 
-#include <QCoreApplication>
-#include <QCommandLineParser>
-#include <QNetworkInterface>
-#include <QHostAddress>
-#include <obs-frontend-api.h>
+#include <string>
+#include <vector>
+#include <algorithm>
+
+#ifdef _WIN32
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#include <iphlpapi.h>
+#pragma comment(lib, "iphlpapi.lib")
+#pragma comment(lib, "ws2_32.lib")
+#else
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <ifaddrs.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#endif
 
 #include "Platform.h"
 #include "plugin-macros.generated.h"
 
 std::string Utils::Platform::GetLocalAddress()
 {
-	std::vector<QString> validAddresses;
-	for (auto address : QNetworkInterface::allAddresses()) {
-		// Exclude addresses which won't work
-		if (address == QHostAddress::LocalHost)
-			continue;
-		else if (address == QHostAddress::LocalHostIPv6)
-			continue;
-		else if (address.isLoopback())
-			continue;
-		else if (address.isLinkLocal())
-			continue;
-		else if (address.isNull())
-			continue;
+#ifdef _WIN32
+ULONG bufLen = 15000;
+std::vector<uint8_t> buf(bufLen);
+PIP_ADAPTER_ADDRESSES pAddresses = reinterpret_cast<PIP_ADAPTER_ADDRESSES>(buf.data());
+ULONG ret = GetAdaptersAddresses(AF_INET, GAA_FLAG_SKIP_ANYCAST | GAA_FLAG_SKIP_MULTICAST | GAA_FLAG_SKIP_DNS_SERVER, NULL, pAddresses, &bufLen);
+if (ret == ERROR_BUFFER_OVERFLOW) {
+buf.resize(bufLen);
+pAddresses = reinterpret_cast<PIP_ADAPTER_ADDRESSES>(buf.data());
+ret = GetAdaptersAddresses(AF_INET, GAA_FLAG_SKIP_ANYCAST | GAA_FLAG_SKIP_MULTICAST | GAA_FLAG_SKIP_DNS_SERVER, NULL, pAddresses, &bufLen);
+}
+if (ret != NO_ERROR)
+return "0.0.0.0";
 
-		validAddresses.push_back(address.toString());
-	}
+std::vector<std::pair<std::string, uint8_t>> preferredAddresses;
+for (PIP_ADAPTER_ADDRESSES pCurrent = pAddresses; pCurrent != nullptr; pCurrent = pCurrent->Next) {
+if (pCurrent->OperStatus != IfOperStatusUp)
+continue;
+for (PIP_ADAPTER_UNICAST_ADDRESS pUnicast = pCurrent->FirstUnicastAddress; pUnicast != nullptr; pUnicast = pUnicast->Next) {
+if (pUnicast->Address.lpSockaddr->sa_family != AF_INET)
+continue;
+char addrBuf[INET_ADDRSTRLEN];
+sockaddr_in *sa = reinterpret_cast<sockaddr_in *>(pUnicast->Address.lpSockaddr);
+if (!inet_ntop(AF_INET, &sa->sin_addr, addrBuf, sizeof(addrBuf)))
+continue;
+std::string addr(addrBuf);
+if (addr == "127.0.0.1")
+continue;
+uint8_t priority = 255;
+if (addr.substr(0, 11) == "192.168.56.")
+			priority = 255;
+			else if (addr.substr(0, 10) == "192.168.1." || addr.substr(0, 10) == "192.168.0.")
+			priority = 0;
+else if (addr.substr(0, 7) == "172.16.")
+priority = 1;
+else if (addr.substr(0, 3) == "10.")
+priority = 2;
+preferredAddresses.emplace_back(addr, priority);
+}
+}
+if (preferredAddresses.empty())
+return "0.0.0.0";
+std::sort(preferredAddresses.begin(), preferredAddresses.end(),
+  [](const std::pair<std::string, uint8_t> &a, const std::pair<std::string, uint8_t> &b) {
+  return a.second < b.second;
+  });
+return preferredAddresses[0].first;
+#else
+struct ifaddrs *ifaddr;
+if (getifaddrs(&ifaddr) == -1)
+return "0.0.0.0";
 
-	// Return early if no valid addresses were found
-	if (validAddresses.size() == 0)
-		return "0.0.0.0";
+std::vector<std::pair<std::string, uint8_t>> preferredAddresses;
+for (struct ifaddrs *ifa = ifaddr; ifa != nullptr; ifa = ifa->ifa_next) {
+if (!ifa->ifa_addr || ifa->ifa_addr->sa_family != AF_INET)
+continue;
+char addrBuf[INET_ADDRSTRLEN];
+sockaddr_in *sa = reinterpret_cast<sockaddr_in *>(ifa->ifa_addr);
+if (!inet_ntop(AF_INET, &sa->sin_addr, addrBuf, sizeof(addrBuf)))
+continue;
+std::string addr(addrBuf);
+if (addr == "127.0.0.1")
+continue;
+uint8_t priority = 255;
+if (addr.substr(0, 11) == "192.168.56.")
+			priority = 255;
+			else if (addr.substr(0, 10) == "192.168.1." || addr.substr(0, 10) == "192.168.0.")
+			priority = 0;
+else if (addr.substr(0, 7) == "172.16.")
+priority = 1;
+else if (addr.substr(0, 3) == "10.")
+priority = 2;
+preferredAddresses.emplace_back(addr, priority);
+}
+freeifaddrs(ifaddr);
 
-	std::vector<std::pair<QString, uint8_t>> preferredAddresses;
-	for (auto address : validAddresses) {
-		// Attribute a priority (0 is best) to the address to choose the best picks
-		if (address.startsWith("192.168.1.") ||
-		    address.startsWith("192.168.0.")) { // Prefer common consumer router network prefixes
-			if (address.startsWith("192.168.56."))
-				preferredAddresses.push_back(std::make_pair(address,
-									    255)); // Ignore virtualbox default
-			else
-				preferredAddresses.push_back(std::make_pair(address, 0));
-		} else if (address.startsWith("172.16.")) { // Slightly less common consumer router network prefixes
-			preferredAddresses.push_back(std::make_pair(address, 1));
-		} else if (address.startsWith("10.")) { // Even less common consumer router network prefixes
-			preferredAddresses.push_back(std::make_pair(address, 2));
-		} else { // Set all other addresses to equal priority
-			preferredAddresses.push_back(std::make_pair(address, 255));
-		}
-	}
-
-	// Sort by priority
-	std::sort(preferredAddresses.begin(), preferredAddresses.end(),
-		  [=](std::pair<QString, uint8_t> a, std::pair<QString, uint8_t> b) { return a.second < b.second; });
-
-	// Return highest priority address
-	return preferredAddresses[0].first.toStdString();
+if (preferredAddresses.empty())
+return "0.0.0.0";
+std::sort(preferredAddresses.begin(), preferredAddresses.end(),
+  [](const std::pair<std::string, uint8_t> &a, const std::pair<std::string, uint8_t> &b) {
+  return a.second < b.second;
+  });
+return preferredAddresses[0].first;
+#endif
 }
 
-QString Utils::Platform::GetCommandLineArgument(QString arg)
+std::string Utils::Platform::GetCommandLineArgument(std::string arg)
 {
-	QCommandLineParser parser;
-	QCommandLineOption cmdlineOption(arg, arg, arg, "");
-	parser.addOption(cmdlineOption);
-	parser.parse(QCoreApplication::arguments());
-
-	if (!parser.isSet(cmdlineOption))
-		return "";
-
-	return parser.value(cmdlineOption);
+// Command-line argument parsing not available without Qt
+(void)arg;
+return "";
 }
 
-bool Utils::Platform::GetCommandLineFlagSet(QString arg)
+bool Utils::Platform::GetCommandLineFlagSet(std::string arg)
 {
-	QCommandLineParser parser;
-	QCommandLineOption cmdlineOption(arg, arg, arg, "");
-	parser.addOption(cmdlineOption);
-	parser.parse(QCoreApplication::arguments());
-
-	return parser.isSet(cmdlineOption);
-}
-
-struct SystemTrayNotification {
-	QSystemTrayIcon::MessageIcon icon;
-	QString title;
-	QString body;
-};
-
-void Utils::Platform::SendTrayNotification(QSystemTrayIcon::MessageIcon icon, QString title, QString body)
-{
-	if (!QSystemTrayIcon::isSystemTrayAvailable() || !QSystemTrayIcon::supportsMessages())
-		return;
-
-	SystemTrayNotification *notification = new SystemTrayNotification{icon, title, body};
-
-	obs_queue_task(
-		OBS_TASK_UI,
-		[](void *param) {
-			auto notification = static_cast<SystemTrayNotification *>(param);
-			void *systemTrayPtr = obs_frontend_get_system_tray();
-			if (systemTrayPtr) {
-				auto systemTray = static_cast<QSystemTrayIcon *>(systemTrayPtr);
-				systemTray->showMessage(notification->title, notification->body, notification->icon);
-			}
-			delete notification;
-		},
-		(void *)notification, false);
+// Command-line flag parsing not available without Qt
+(void)arg;
+return false;
 }

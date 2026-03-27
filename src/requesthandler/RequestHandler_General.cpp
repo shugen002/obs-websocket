@@ -17,9 +17,6 @@ You should have received a copy of the GNU General Public License along
 with this program. If not, see <https://www.gnu.org/licenses/>
 */
 
-#include <QImageWriter>
-#include <QSysInfo>
-
 #include "RequestHandler.h"
 #include "../websocketserver/WebSocketServer.h"
 #include "../eventhandler/types/EventSubscription.h"
@@ -52,15 +49,18 @@ RequestResult RequestHandler::GetVersion(const Request &)
 	responseData["rpcVersion"] = OBS_WEBSOCKET_RPC_VERSION;
 	responseData["availableRequests"] = GetRequestList();
 
-	QList<QByteArray> imageWriterFormats = QImageWriter::supportedImageFormats();
-	std::vector<std::string> supportedImageFormats;
-	for (const QByteArray &format : imageWriterFormats) {
-		supportedImageFormats.push_back(format.toStdString());
-	}
-	responseData["supportedImageFormats"] = supportedImageFormats;
+	responseData["supportedImageFormats"] = std::vector<std::string>{};
 
-	responseData["platform"] = QSysInfo::productType().toStdString();
-	responseData["platformDescription"] = QSysInfo::prettyProductName().toStdString();
+#ifdef _WIN32
+	responseData["platform"] = "windows";
+	responseData["platformDescription"] = "Windows";
+#elif defined(__APPLE__)
+	responseData["platform"] = "macos";
+	responseData["platformDescription"] = "macOS";
+#else
+	responseData["platform"] = "linux";
+	responseData["platformDescription"] = "Linux";
+#endif
 
 	return RequestResult::Success(responseData);
 }

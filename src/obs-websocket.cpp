@@ -17,17 +17,13 @@ You should have received a copy of the GNU General Public License along
 with this program. If not, see <https://www.gnu.org/licenses/>
 */
 
-#include <QAction>
-#include <QMainWindow>
 #include <obs-module.h>
-#include <obs-frontend-api.h>
 
 #include "obs-websocket.h"
 #include "Config.h"
 #include "WebSocketApi.h"
 #include "websocketserver/WebSocketServer.h"
 #include "eventhandler/EventHandler.h"
-#include "forms/SettingsDialog.h"
 
 OBS_DECLARE_MODULE()
 OBS_MODULE_USE_DEFAULT_LOCALE("obs-websocket", "en-US")
@@ -46,7 +42,6 @@ ConfigPtr _config;
 EventHandlerPtr _eventHandler;
 WebSocketApiPtr _webSocketApi;
 WebSocketServerPtr _webSocketServer;
-SettingsDialog *_settingsDialog = nullptr;
 
 void OnWebSocketApiVendorEvent(std::string vendorName, std::string eventType, obs_data_t *obsEventData);
 void OnEvent(uint64_t requiredIntent, std::string eventType, json eventData, uint8_t rpcVersion);
@@ -56,7 +51,6 @@ bool obs_module_load(void)
 {
 	blog(LOG_INFO, "[obs_module_load] you can haz websockets (Version: %s | RPC Version: %d)", OBS_WEBSOCKET_VERSION,
 	     OBS_WEBSOCKET_RPC_VERSION);
-	blog(LOG_INFO, "[obs_module_load] Qt version (compile-time): %s | Qt version (run-time): %s", QT_VERSION_STR, qVersion());
 	blog(LOG_INFO, "[obs_module_load] Linked ASIO Version: %d", ASIO_VERSION);
 
 	// Initialize the cpu stats
@@ -86,17 +80,6 @@ bool obs_module_load(void)
 	_webSocketServer = std::make_shared<WebSocketServer>();
 	_webSocketServer->SetClientSubscriptionCallback(std::bind(&EventHandler::ProcessSubscriptionChange, _eventHandler.get(),
 								  std::placeholders::_1, std::placeholders::_2));
-
-	// Initialize the settings dialog
-	obs_frontend_push_ui_translation(obs_module_get_string);
-	QMainWindow *mainWindow = static_cast<QMainWindow *>(obs_frontend_get_main_window());
-	_settingsDialog = new SettingsDialog(mainWindow);
-	obs_frontend_pop_ui_translation();
-
-	// Add the settings dialog to the tools menu
-	const char *menuActionText = obs_module_text("OBSWebSocket.Settings.DialogTitle");
-	QAction *menuAction = (QAction *)obs_frontend_add_tools_menu_qaction(menuActionText);
-	QObject::connect(menuAction, &QAction::triggered, [] { _settingsDialog->ToggleShowHide(); });
 
 	blog(LOG_INFO, "[obs_module_load] Module loaded.");
 	return true;

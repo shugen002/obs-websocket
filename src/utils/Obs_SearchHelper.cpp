@@ -79,21 +79,8 @@ obs_hotkey_t *Utils::Obs::SearchHelper::GetHotkeyByName(std::string name, std::s
 // Increments source ref. Use OBSSourceAutoRelease
 obs_source_t *Utils::Obs::SearchHelper::GetSceneTransitionByName(std::string name)
 {
-	obs_frontend_source_list transitionList = {};
-	obs_frontend_get_transitions(&transitionList);
-
-	obs_source_t *ret = nullptr;
-	for (size_t i = 0; i < transitionList.sources.num; i++) {
-		obs_source_t *transition = transitionList.sources.array[i];
-		if (obs_source_get_name(transition) == name) {
-			ret = obs_source_get_ref(transition);
-			break;
-		}
-	}
-
-	obs_frontend_source_list_free(&transitionList);
-
-	return ret;
+	(void)name;
+	return nullptr;
 }
 
 struct SceneItemSearchData {

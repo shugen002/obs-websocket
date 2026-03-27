@@ -20,9 +20,6 @@ with this program. If not, see <https://www.gnu.org/licenses/>
 #pragma once
 
 #include <mutex>
-#include <QObject>
-#include <QThreadPool>
-#include <QString>
 #include <asio.hpp>
 #include <websocketpp/config/asio_no_tls.hpp>
 #include <websocketpp/server.hpp>
@@ -32,73 +29,68 @@ with this program. If not, see <https://www.gnu.org/licenses/>
 #include "types/WebSocketOpCode.h"
 #include "../requesthandler/rpc/Request.h"
 #include "../utils/Json.h"
+#include "../utils/Compat.h"
 #include "plugin-macros.generated.h"
 
-class WebSocketServer : QObject {
-	Q_OBJECT
-
+class WebSocketServer {
 public:
-	enum WebSocketEncoding { Json, MsgPack };
+enum WebSocketEncoding { Json, MsgPack };
 
-	struct WebSocketSessionState {
-		websocketpp::connection_hdl hdl;
-		std::string remoteAddress;
-		uint64_t connectedAt;
-		uint64_t incomingMessages;
-		uint64_t outgoingMessages;
-		bool isIdentified;
-	};
+struct WebSocketSessionState {
+websocketpp::connection_hdl hdl;
+std::string remoteAddress;
+uint64_t connectedAt;
+uint64_t incomingMessages;
+uint64_t outgoingMessages;
+bool isIdentified;
+};
 
-	WebSocketServer();
-	~WebSocketServer();
+WebSocketServer();
+~WebSocketServer();
 
-	void Start();
-	void Stop();
-	void InvalidateSession(websocketpp::connection_hdl hdl);
-	void BroadcastEvent(uint64_t requiredIntent, const std::string &eventType, const json &eventData = nullptr,
-			    uint8_t rpcVersion = 0);
-	inline void SetObsReady(bool ready) { _obsReady = ready; }
-	inline bool IsListening() { return _server.is_listening(); }
-	std::vector<WebSocketSessionState> GetWebSocketSessions();
-	inline QThreadPool *GetThreadPool() { return &_threadPool; }
+void Start();
+void Stop();
+void InvalidateSession(websocketpp::connection_hdl hdl);
+void BroadcastEvent(uint64_t requiredIntent, const std::string &eventType, const json &eventData = nullptr,
+    uint8_t rpcVersion = 0);
+inline void SetObsReady(bool ready) { _obsReady = ready; }
+inline bool IsListening() { return _server.is_listening(); }
+std::vector<WebSocketSessionState> GetWebSocketSessions();
+inline Utils::Compat::SimpleThreadPool *GetThreadPool() { return &_threadPool; }
 
-	// Callback for when a client subscribes or unsubscribes. `true` for sub, `false` for unsub
-	typedef std::function<void(bool, uint64_t)> ClientSubscriptionCallback; // bool type, uint64_t eventSubscriptions
-	inline void SetClientSubscriptionCallback(ClientSubscriptionCallback cb) { _clientSubscriptionCallback = cb; }
-
-signals:
-	void ClientConnected(WebSocketSessionState state);
-	void ClientDisconnected(WebSocketSessionState state, uint16_t closeCode);
+// Callback for when a client subscribes or unsubscribes. `true` for sub, `false` for unsub
+typedef std::function<void(bool, uint64_t)> ClientSubscriptionCallback; // bool type, uint64_t eventSubscriptions
+inline void SetClientSubscriptionCallback(ClientSubscriptionCallback cb) { _clientSubscriptionCallback = cb; }
 
 private:
-	struct ProcessResult {
-		WebSocketCloseCode::WebSocketCloseCode closeCode = WebSocketCloseCode::DontClose;
-		std::string closeReason;
-		json result;
-	};
+struct ProcessResult {
+WebSocketCloseCode::WebSocketCloseCode closeCode = WebSocketCloseCode::DontClose;
+std::string closeReason;
+json result;
+};
 
-	void ServerRunner();
+void ServerRunner();
 
-	bool onValidate(websocketpp::connection_hdl hdl);
-	void onOpen(websocketpp::connection_hdl hdl);
-	void onClose(websocketpp::connection_hdl hdl);
-	void onMessage(websocketpp::connection_hdl hdl, websocketpp::server<websocketpp::config::asio>::message_ptr message);
+bool onValidate(websocketpp::connection_hdl hdl);
+void onOpen(websocketpp::connection_hdl hdl);
+void onClose(websocketpp::connection_hdl hdl);
+void onMessage(websocketpp::connection_hdl hdl, websocketpp::server<websocketpp::config::asio>::message_ptr message);
 
-	static void SetSessionParameters(SessionPtr session, WebSocketServer::ProcessResult &ret, const json &payloadData);
-	void ProcessMessage(SessionPtr session, ProcessResult &ret, WebSocketOpCode::WebSocketOpCode opCode, json &payloadData);
+static void SetSessionParameters(SessionPtr session, WebSocketServer::ProcessResult &ret, const json &payloadData);
+void ProcessMessage(SessionPtr session, ProcessResult &ret, WebSocketOpCode::WebSocketOpCode opCode, json &payloadData);
 
-	QThreadPool _threadPool;
+Utils::Compat::SimpleThreadPool _threadPool;
 
-	std::thread _serverThread;
-	websocketpp::server<websocketpp::config::asio> _server;
+std::thread _serverThread;
+websocketpp::server<websocketpp::config::asio> _server;
 
-	std::string _authenticationSecret;
-	std::string _authenticationSalt;
+std::string _authenticationSecret;
+std::string _authenticationSalt;
 
-	std::mutex _sessionMutex;
-	std::map<websocketpp::connection_hdl, SessionPtr, std::owner_less<websocketpp::connection_hdl>> _sessions;
+std::mutex _sessionMutex;
+std::map<websocketpp::connection_hdl, SessionPtr, std::owner_less<websocketpp::connection_hdl>> _sessions;
 
-	std::atomic<bool> _obsReady = false;
+std::atomic<bool> _obsReady = false;
 
-	ClientSubscriptionCallback _clientSubscriptionCallback;
+ClientSubscriptionCallback _clientSubscriptionCallback;
 };

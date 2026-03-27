@@ -18,7 +18,7 @@ with this program. If not, see <https://www.gnu.org/licenses/>
 */
 
 #include <inttypes.h>
-#include <QString>
+#include <stdio.h>
 
 #include <obs-module.h>
 
@@ -29,90 +29,71 @@ with this program. If not, see <https://www.gnu.org/licenses/>
 
 std::string Utils::Obs::StringHelper::GetObsVersion()
 {
-	uint32_t version = obs_get_version();
+uint32_t version = obs_get_version();
 
-	uint8_t major, minor, patch;
-	major = (version >> 24) & 0xFF;
-	minor = (version >> 16) & 0xFF;
-	patch = version & 0xFF;
+uint8_t major, minor, patch;
+major = (version >> 24) & 0xFF;
+minor = (version >> 16) & 0xFF;
+patch = version & 0xFF;
 
-	QString combined = QString("%1.%2.%3").arg(major).arg(minor).arg(patch);
-	return combined.toStdString();
+char buf[32];
+snprintf(buf, sizeof(buf), "%u.%u.%u", (unsigned)major, (unsigned)minor, (unsigned)patch);
+return std::string(buf);
 }
 
 std::string Utils::Obs::StringHelper::GetModuleConfigPath(std::string fileName)
 {
-	BPtr<char> configPath = obs_module_config_path(fileName.c_str());
-	return std::string(configPath.Get());
+BPtr<char> configPath = obs_module_config_path(fileName.c_str());
+return std::string(configPath.Get());
 }
 
 std::string Utils::Obs::StringHelper::GetCurrentSceneCollection()
 {
-	BPtr<char> sceneCollectionName = obs_frontend_get_current_scene_collection();
-	return std::string(sceneCollectionName ? sceneCollectionName.Get() : "");
+return "";
 }
 
 std::string Utils::Obs::StringHelper::GetCurrentProfile()
 {
-	BPtr<char> profileName = obs_frontend_get_current_profile();
-	return std::string(profileName ? profileName.Get() : "");
+return "";
 }
 
 std::string Utils::Obs::StringHelper::GetCurrentProfilePath()
 {
-	BPtr<char> profilePath = obs_frontend_get_current_profile_path();
-	return std::string(profilePath ? profilePath.Get() : "");
+return "";
 }
 
 std::string Utils::Obs::StringHelper::GetCurrentRecordOutputPath()
 {
-	BPtr<char> recordOutputPath = obs_frontend_get_current_record_output_path();
-	return std::string(recordOutputPath.Get());
+return "";
 }
 
 std::string Utils::Obs::StringHelper::GetLastRecordFileName()
 {
-	OBSOutputAutoRelease output = obs_frontend_get_recording_output();
-	if (!output)
-		return "";
-
-	OBSDataAutoRelease outputSettings = obs_output_get_settings(output);
-
-	obs_data_item_t *item = obs_data_item_byname(outputSettings, "url");
-	if (!item) {
-		item = obs_data_item_byname(outputSettings, "path");
-		if (!item)
-			return "";
-	}
-
-	std::string ret = obs_data_item_get_string(item);
-	obs_data_item_release(&item);
-	return ret;
+return "";
 }
 
 std::string Utils::Obs::StringHelper::GetLastReplayBufferFileName()
 {
-	BPtr<char> replayBufferPath = obs_frontend_get_last_replay();
-	return std::string(replayBufferPath.Get());
+return "";
 }
 
 std::string Utils::Obs::StringHelper::GetLastScreenshotFileName()
 {
-	BPtr<char> screenshotPath = obs_frontend_get_last_screenshot();
-	return std::string(screenshotPath.Get());
+return "";
 }
 
 std::string Utils::Obs::StringHelper::DurationToTimecode(uint64_t ms)
 {
-	uint64_t secs = ms / 1000ULL;
-	uint64_t minutes = secs / 60ULL;
+uint64_t secs = ms / 1000ULL;
+uint64_t minutes = secs / 60ULL;
 
-	uint64_t hoursPart = minutes / 60ULL;
-	uint64_t minutesPart = minutes % 60ULL;
-	uint64_t secsPart = secs % 60ULL;
-	uint64_t msPart = ms % 1000ULL;
+uint64_t hoursPart = minutes / 60ULL;
+uint64_t minutesPart = minutes % 60ULL;
+uint64_t secsPart = secs % 60ULL;
+uint64_t msPart = ms % 1000ULL;
 
-	QString formatted =
-		QString::asprintf("%02" PRIu64 ":%02" PRIu64 ":%02" PRIu64 ".%03" PRIu64, hoursPart, minutesPart, secsPart, msPart);
-	return formatted.toStdString();
+char buf[32];
+snprintf(buf, sizeof(buf), "%02" PRIu64 ":%02" PRIu64 ":%02" PRIu64 ".%03" PRIu64,
+ hoursPart, minutesPart, secsPart, msPart);
+return std::string(buf);
 }

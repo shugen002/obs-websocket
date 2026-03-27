@@ -20,14 +20,11 @@ with this program. If not, see <https://www.gnu.org/licenses/>
 #pragma once
 
 #include <string>
-#include <QString>
-#include <QSystemTrayIcon>
 
 namespace Utils {
-	namespace Platform {
-		std::string GetLocalAddress();
-		QString GetCommandLineArgument(QString arg);
-		bool GetCommandLineFlagSet(QString arg);
-		void SendTrayNotification(QSystemTrayIcon::MessageIcon icon, QString title, QString body);
-	}
+namespace Platform {
+std::string GetLocalAddress();
+std::string GetCommandLineArgument(std::string arg);
+bool GetCommandLineFlagSet(std::string arg);
+}
 }

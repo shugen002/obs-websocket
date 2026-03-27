@@ -47,26 +47,13 @@ RequestResult RequestHandler::GetSceneList(const Request &request)
 
 	json responseData;
 
-	if (obs_canvas_get_flags(canvas) & MAIN) { // Main canvas, which has a program scene, preview scene, and scene order
-		OBSSourceAutoRelease currentProgramScene = obs_frontend_get_current_scene();
-		if (currentProgramScene) {
-			responseData["currentProgramSceneName"] = obs_source_get_name(currentProgramScene);
-			responseData["currentProgramSceneUuid"] = obs_source_get_uuid(currentProgramScene);
-		} else {
-			responseData["currentProgramSceneName"] = nullptr;
-			responseData["currentProgramSceneUuid"] = nullptr;
-		}
-
-		OBSSourceAutoRelease currentPreviewScene = obs_frontend_get_current_preview_scene();
-		if (currentPreviewScene) {
-			responseData["currentPreviewSceneName"] = obs_source_get_name(currentPreviewScene);
-			responseData["currentPreviewSceneUuid"] = obs_source_get_uuid(currentPreviewScene);
-		} else {
-			responseData["currentPreviewSceneName"] = nullptr;
-			responseData["currentPreviewSceneUuid"] = nullptr;
-		}
+	if (obs_canvas_get_flags(canvas) & MAIN) {
+		responseData["currentProgramSceneName"] = nullptr;
+		responseData["currentProgramSceneUuid"] = nullptr;
+		responseData["currentPreviewSceneName"] = nullptr;
+		responseData["currentPreviewSceneUuid"] = nullptr;
 		responseData["scenes"] = Utils::Obs::ArrayHelper::GetSceneList();
-	} else { // Non-main canvas, which only has an unordered array of scenes
+	} else {
 		responseData["currentProgramSceneName"] = nullptr;
 		responseData["currentProgramSceneUuid"] = nullptr;
 		responseData["currentProgramSceneName"] = nullptr;
@@ -126,12 +113,7 @@ RequestResult RequestHandler::GetGroupList(const Request &request)
  */
 RequestResult RequestHandler::GetCurrentProgramScene(const Request &)
 {
-	json responseData;
-	OBSSourceAutoRelease currentProgramScene = obs_frontend_get_current_scene();
-	responseData["sceneName"] = responseData["currentProgramSceneName"] = obs_source_get_name(currentProgramScene);
-	responseData["sceneUuid"] = responseData["currentProgramSceneUuid"] = obs_source_get_uuid(currentProgramScene);
-
-	return RequestResult::Success(responseData);
+	return RequestResult::Error(RequestStatus::UnsupportedFeature);
 }
 
 /**
@@ -155,15 +137,7 @@ RequestResult RequestHandler::SetCurrentProgramScene(const Request &request)
 	if (!scene)
 		return RequestResult::Error(statusCode, comment);
 
-	OBSCanvasAutoRelease canvas = obs_source_get_canvas(scene);
-	if (!canvas || !(obs_canvas_get_flags(canvas) & MAIN))
-		return RequestResult::Error(
-			RequestStatus::InvalidResourceState,
-			"The specified scene is not from the main canvas and cannot be set as the program scene.");
-
-	obs_frontend_set_current_scene(scene);
-
-	return RequestResult::Success();
+	return RequestResult::Error(RequestStatus::UnsupportedFeature);
 }
 
 /**
@@ -187,53 +161,18 @@ RequestResult RequestHandler::SetCurrentProgramScene(const Request &request)
  */
 RequestResult RequestHandler::GetCurrentPreviewScene(const Request &)
 {
-	if (!obs_frontend_preview_program_mode_active())
-		return RequestResult::Error(RequestStatus::StudioModeNotActive);
-
-	OBSSourceAutoRelease currentPreviewScene = obs_frontend_get_current_preview_scene();
-
-	json responseData;
-	responseData["sceneName"] = responseData["currentPreviewSceneName"] = obs_source_get_name(currentPreviewScene);
-	responseData["sceneUuid"] = responseData["currentPreviewSceneUuid"] = obs_source_get_uuid(currentPreviewScene);
-
-	return RequestResult::Success(responseData);
+	return RequestResult::Error(RequestStatus::UnsupportedFeature);
 }
 
-/**
- * Sets the current preview scene.
- *
- * Only available when studio mode is enabled.
- *
- * @requestField ?sceneName  | String | Scene name to set as the current preview scene
- * @requestField ?sceneUuid  | String | Scene UUID to set as the current preview scene
- *
- * @requestType SetCurrentPreviewScene
- * @complexity 1
- * @rpcVersion -1
- * @initialVersion 5.0.0
- * @api requests
- * @category scenes
- */
 RequestResult RequestHandler::SetCurrentPreviewScene(const Request &request)
 {
-	if (!obs_frontend_preview_program_mode_active())
-		return RequestResult::Error(RequestStatus::StudioModeNotActive);
-
 	RequestStatus::RequestStatus statusCode;
 	std::string comment;
 	OBSSourceAutoRelease scene = request.AcquireScene(statusCode, comment);
 	if (!scene)
 		return RequestResult::Error(statusCode, comment);
 
-	OBSCanvasAutoRelease canvas = obs_source_get_canvas(scene);
-	if (!canvas || !(obs_canvas_get_flags(canvas) & MAIN))
-		return RequestResult::Error(
-			RequestStatus::InvalidResourceState,
-			"The specified scene is not from the main canvas and cannot be set as the preview scene.");
-
-	obs_frontend_set_current_preview_scene(scene);
-
-	return RequestResult::Success();
+	return RequestResult::Error(RequestStatus::UnsupportedFeature);
 }
 
 /**

@@ -18,10 +18,9 @@ with this program. If not, see <https://www.gnu.org/licenses/>
 */
 
 #include <chrono>
+#include <ctime>
 #include <thread>
-#include <QDateTime>
 #include <obs-module.h>
-#include <obs-frontend-api.h>
 
 #include "WebSocketServer.h"
 #include "../obs-websocket.h"
@@ -30,7 +29,7 @@ with this program. If not, see <https://www.gnu.org/licenses/>
 #include "../utils/Platform.h"
 #include "../utils/Compat.h"
 
-WebSocketServer::WebSocketServer() : QObject(nullptr)
+WebSocketServer::WebSocketServer()
 {
 	_server.get_alog().clear_channels(websocketpp::log::alevel::all);
 	_server.get_elog().clear_channels(websocketpp::log::elevel::all);
@@ -234,7 +233,7 @@ void WebSocketServer::onOpen(websocketpp::connection_hdl hdl)
 
 	// Configure session details
 	session->SetRemoteAddress(conn->get_remote_endpoint());
-	session->SetConnectedAt(QDateTime::currentSecsSinceEpoch());
+	session->SetConnectedAt((uint64_t)time(nullptr));
 	session->SetAuthenticationRequired(conf->AuthRequired);
 	std::string selectedSubprotocol = conn->get_subprotocol();
 	if (!selectedSubprotocol.empty()) {
@@ -327,21 +326,6 @@ void WebSocketServer::onClose(websocketpp::connection_hdl hdl)
 	// Log disconnection
 	blog(LOG_INFO, "[WebSocketServer::onClose] WebSocket client `%s` has disconnected with code `%d` and reason: %s",
 	     remoteAddress.c_str(), conn->get_local_close_code(), conn->get_local_close_reason().c_str());
-
-	// Get config for tray notification
-	auto conf = GetConfig();
-	if (!conf) {
-		blog(LOG_ERROR, "[WebSocketServer::onClose] Unable to retreive config!");
-		return;
-	}
-
-	// If previously identified, not going away, and notifications enabled, send a tray notification
-	if (isIdentified && (conn->get_local_close_code() != websocketpp::close::status::going_away) && conf->AlertsEnabled) {
-		QString title = obs_module_text("OBSWebSocket.TrayNotification.Disconnected.Title");
-		QString body = QString(obs_module_text("OBSWebSocket.TrayNotification.Disconnected.Body"))
-				       .arg(QString::fromStdString(remoteAddress));
-		Utils::Platform::SendTrayNotification(QSystemTrayIcon::Information, title, body);
-	}
 }
 
 void WebSocketServer::onMessage(websocketpp::connection_hdl hdl,
@@ -349,7 +333,7 @@ void WebSocketServer::onMessage(websocketpp::connection_hdl hdl,
 {
 	auto opCode = message->get_opcode();
 	std::string payload = message->get_payload();
-	_threadPool.start(Utils::Compat::CreateFunctionRunnable([=]() {
+	_threadPool.start([=]() {
 		std::unique_lock<std::mutex> lock(_sessionMutex);
 		SessionPtr session;
 		try {
@@ -460,5 +444,5 @@ void WebSocketServer::onMessage(websocketpp::connection_hdl hdl,
 				blog(LOG_WARNING, "[WebSocketServer::onMessage] Sending message to client failed: %s",
 				     errorCode.message().c_str());
 		}
-	}));
+	});
 }

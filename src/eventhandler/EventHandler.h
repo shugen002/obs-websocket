@@ -21,7 +21,6 @@ with this program. If not, see <https://www.gnu.org/licenses/>
 
 #include <atomic>
 #include <obs.hpp>
-#include <obs-frontend-api.h>
 
 #include "types/EventSubscription.h"
 #include "../obs-websocket.h"
@@ -64,11 +63,6 @@ private:
 	void DisconnectSourceSignals(obs_source_t *source);
 
 	void BroadcastEvent(uint64_t requiredIntent, std::string eventType, json eventData = nullptr, uint8_t rpcVersion = 0);
-
-	// Signal handler: frontend
-	static void OnFrontendEvent(enum obs_frontend_event event, void *private_data);
-	void FrontendFinishedLoadingMultiHandler();
-	void FrontendExitMultiHandler();
 
 	// Signal handler: libobs
 	static void SourceCreatedMultiHandler(void *param, calldata_t *data);
