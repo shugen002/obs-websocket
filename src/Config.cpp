@@ -171,20 +171,8 @@ bool MigratePersistentData()
 		return false;
 	}
 
-	// Move any existing persistent data to module config directory, then delete old file
-	auto oldPersistentDataPath = std::filesystem::u8path(Utils::Obs::StringHelper::GetCurrentProfilePath() +
-							     "/../../../obsWebSocketPersistentData.json");
-	if (std::filesystem::exists(oldPersistentDataPath, ec)) {
-		auto persistentDataPath =
-			std::filesystem::u8path(Utils::Obs::StringHelper::GetModuleConfigPath("persistent_data.json"));
-		std::filesystem::copy_file(oldPersistentDataPath, persistentDataPath, ec);
-		std::filesystem::remove(oldPersistentDataPath, ec);
-		blog(LOG_INFO, "[MigratePersistentData] Persistent data migrated to new path");
-	}
-	if (ec) {
-		blog(LOG_ERROR, "[MigratePersistentData] Failed to move persistent data: %s", ec.message().c_str());
-		return false;
-	}
+	// Skip legacy migration since obs_frontend profile path is not available
+	(void)ec;
 
 	return true;
 }

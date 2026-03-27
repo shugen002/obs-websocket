@@ -29,71 +29,71 @@ with this program. If not, see <https://www.gnu.org/licenses/>
 
 std::string Utils::Obs::StringHelper::GetObsVersion()
 {
-uint32_t version = obs_get_version();
+	uint32_t version = obs_get_version();
 
-uint8_t major, minor, patch;
-major = (version >> 24) & 0xFF;
-minor = (version >> 16) & 0xFF;
-patch = version & 0xFF;
+	uint8_t major, minor, patch;
+	major = (version >> 24) & 0xFF;
+	minor = (version >> 16) & 0xFF;
+	patch = version & 0xFF;
 
-char buf[32];
-snprintf(buf, sizeof(buf), "%u.%u.%u", (unsigned)major, (unsigned)minor, (unsigned)patch);
-return std::string(buf);
+	char buf[32];
+	snprintf(buf, sizeof(buf), "%u.%u.%u", (unsigned)major, (unsigned)minor, (unsigned)patch);
+	return std::string(buf);
 }
 
 std::string Utils::Obs::StringHelper::GetModuleConfigPath(std::string fileName)
 {
-BPtr<char> configPath = obs_module_config_path(fileName.c_str());
-return std::string(configPath.Get());
+	BPtr<char> configPath = obs_module_config_path(fileName.c_str());
+	return std::string(configPath.Get());
 }
 
 std::string Utils::Obs::StringHelper::GetCurrentSceneCollection()
 {
-return "";
+	return "";
 }
 
 std::string Utils::Obs::StringHelper::GetCurrentProfile()
 {
-return "";
+	return "";
 }
 
 std::string Utils::Obs::StringHelper::GetCurrentProfilePath()
 {
-return "";
+	return "";
 }
 
 std::string Utils::Obs::StringHelper::GetCurrentRecordOutputPath()
 {
-return "";
+	return "";
 }
 
 std::string Utils::Obs::StringHelper::GetLastRecordFileName()
 {
-return "";
+	return "";
 }
 
 std::string Utils::Obs::StringHelper::GetLastReplayBufferFileName()
 {
-return "";
+	return "";
 }
 
 std::string Utils::Obs::StringHelper::GetLastScreenshotFileName()
 {
-return "";
+	return "";
 }
 
 std::string Utils::Obs::StringHelper::DurationToTimecode(uint64_t ms)
 {
-uint64_t secs = ms / 1000ULL;
-uint64_t minutes = secs / 60ULL;
+	uint64_t secs = ms / 1000ULL;
+	uint64_t minutes = secs / 60ULL;
 
-uint64_t hoursPart = minutes / 60ULL;
-uint64_t minutesPart = minutes % 60ULL;
-uint64_t secsPart = secs % 60ULL;
-uint64_t msPart = ms % 1000ULL;
+	uint64_t hoursPart = minutes / 60ULL;
+	uint64_t minutesPart = minutes % 60ULL;
+	uint64_t secsPart = secs % 60ULL;
+	uint64_t msPart = ms % 1000ULL;
 
-char buf[32];
-snprintf(buf, sizeof(buf), "%02" PRIu64 ":%02" PRIu64 ":%02" PRIu64 ".%03" PRIu64,
- hoursPart, minutesPart, secsPart, msPart);
-return std::string(buf);
+	char buf[32];
+	snprintf(buf, sizeof(buf), "%02" PRIu64 ":%02" PRIu64 ":%02" PRIu64 ".%03" PRIu64,
+		 hoursPart, minutesPart, secsPart, msPart);
+	return std::string(buf);
 }
